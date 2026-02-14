@@ -11,7 +11,7 @@ import (
 func main() {
 	addr, err := net.ResolveUDPAddr("udp", ":42069")
 	if err != nil {
-		log.Fatalf("error resolving addr: %v")
+		log.Fatalf("error resolving addr: %v", err)
 	}
 	conn, err := net.DialUDP("udp", nil, addr)
 	if err != nil {
@@ -29,6 +29,5 @@ func main() {
 		if err != nil {
 			fmt.Printf("error writing line from connection: %v", err)
 		}
-
 	}
 }
