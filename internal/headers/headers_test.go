@@ -1,6 +1,7 @@
 package headers
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -64,4 +65,16 @@ func TestParse(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 0, n)
 	assert.False(t, done)
+
+	// Test: Multiple values for single header
+	headers = NewHeaders()
+	headers.Set("set-person", "lane-loves-go")
+	fmt.Println(headers.Get("set-person"))
+	data = []byte("Set-Person: prime-loves-zig\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	assert.Equal(t, "lane-loves-go, prime-loves-zig", headers["set-person"])
+	assert.Equal(t, 29, n)
+	assert.False(t, done)
+
 }
