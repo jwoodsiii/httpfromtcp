@@ -21,15 +21,20 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	if idx == -1 {
 		log.Printf("no data consumed")
 		return 0, false, nil
-	} else if idx <= len(data[:2]) {
+	} else if idx == 0 { // blank line terminates headers
 		log.Printf("found crlf at beginning of data")
 		return 2, true, nil
 	}
-	strData := strings.TrimSpace(string(data))
-	fields := strings.Fields(strData)
-	key, value := strings.TrimSuffix(fields[0], ":"), fields[1]
-	if strings.IndexByte(strData, ' ') <= len(key) {
-		return 0, false, fmt.Errorf("invalid key format, no space allowed between host and colon")
+	line := string(data[:idx])
+	befColon, aftColon, found := strings.Cut(line, ":")
+	if !found {
+		return 0, false, fmt.Errorf("no colon found in data")
+	} else if string(befColon[len(befColon)-1]) == " " {
+		return 0, false, fmt.Errorf("error: space between key and colon")
+	}
+	key, value := strings.TrimSpace(befColon), strings.TrimSpace(aftColon)
+	if key == "" {
+		return 0, false, fmt.Errorf("empty header name")
 	}
 	//regexp impl of fieldname invalid char check
 	// if !isFieldName(key) {
@@ -43,7 +48,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 	// check to see if key already has values set
 	tmp := h.Get(key)
-	fmt.Printf("existing value: %s", tmp)
+	// fmt.Printf("existing value: %s", tmp)
 	if tmp == "" {
 		h.Set(key, value)
 	} else {
@@ -51,7 +56,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		h.Set(key, concat)
 	}
 
-	return len(data[:idx+len(crlf)]), false, nil
+	return idx + 2, false, nil
 }
 
 func NewHeaders() Headers {
