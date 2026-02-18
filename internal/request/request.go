@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strconv"
 	"strings"
 
 	"github.com/jwoodsiii/httpfromtcp/internal/headers"
@@ -17,6 +18,7 @@ const (
 	initialized parseState = iota
 	done
 	parsingHeaders
+	parsingBody
 )
 
 const crlf = "\r\n"
@@ -26,6 +28,7 @@ type Request struct {
 	RequestLine RequestLine
 	state       parseState
 	Headers     headers.Headers
+	Body        []byte
 }
 
 type RequestLine struct {
@@ -74,6 +77,11 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	// 	return nil, fmt.Errorf("error parsing string to requestline: %v", err)
 	// }
 	// r.RequestLine = *rl
+	fmt.Printf("Request line:\n- Method: %s\n- Target: %s\n- Version: %s\n", r.RequestLine.Method, r.RequestLine.RequestTarget, r.RequestLine.HttpVersion)
+	fmt.Println("Headers:")
+	for k, v := range r.Headers {
+		fmt.Printf("- %s: %s\n", k, v)
+	}
 	return r, nil
 }
 
@@ -86,7 +94,7 @@ func (r *Request) parse(data []byte) (int, error) {
 			return totalBytesParsed, fmt.Errorf("error parsing data from bytes: %v", err)
 		}
 		if n == 0 {
-			log.Printf("no data")
+			// log.Printf("no data")
 			break
 		}
 		totalBytesParsed += n
@@ -102,22 +110,40 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 			return 0, fmt.Errorf("error parsing request line from buffer: %v", err)
 		}
 		if parsed == 0 {
-			log.Printf("need more data\n")
+			// log.Printf("need more data\n")
 			return 0, nil
 		}
 		r.RequestLine = *rl
 		r.state = parsingHeaders
 		return parsed, nil
 	case parsingHeaders:
-		log.Printf("starting header parse with data: %s", string(data))
+		// log.Printf("starting header parse with data: %s", string(data))
 		processed, fin, err := r.Headers.Parse(data)
 		if err != nil {
 			return 0, fmt.Errorf("error parsing headers: %v", err)
 		}
 		if fin {
-			r.state = done
+			r.state = parsingBody
 		}
 		return processed, nil
+	case parsingBody:
+		log.Printf("parsing body with value: %v\n", r.Body)
+		contentLen := r.Headers.Get("Content-Length")
+		if contentLen == "" {
+			r.state = done
+			return 0, nil
+		}
+		r.Body = append(r.Body, data...)
+		cLenInt, err := strconv.Atoi(contentLen)
+		if err != nil {
+			return 0, fmt.Errorf("error converting content len to int: %v", err)
+		}
+		if len(r.Body) > cLenInt {
+			return 0, fmt.Errorf("error: content length")
+		} else if len(r.Body) == cLenInt {
+			r.state = done
+		}
+		return len(data), nil
 	case done:
 		return 0, fmt.Errorf("error: attempting to read data in done state")
 	default:
