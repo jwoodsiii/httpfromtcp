@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"strconv"
 	"strings"
 
@@ -82,6 +81,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	for k, v := range r.Headers {
 		fmt.Printf("- %s: %s\n", k, v)
 	}
+	fmt.Printf("Body:\n%s", string(r.Body))
 	return r, nil
 }
 
@@ -127,7 +127,7 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 		}
 		return processed, nil
 	case parsingBody:
-		log.Printf("parsing body with value: %v\n", r.Body)
+		// log.Printf("parsing body with value: %v\n", r.Body)
 		contentLen := r.Headers.Get("Content-Length")
 		if contentLen == "" {
 			r.state = done

@@ -20,10 +20,10 @@ func main() {
 	}
 	defer conn.Close()
 	fmt.Printf("conn accepted...\n")
-	req, err := request.RequestFromReader(conn)
+	_, err = request.RequestFromReader(conn)
 	if err != nil {
 		log.Fatalf("error getting request from connection: %v", err)
 	}
-	fmt.Printf("Request line:\n- Method: %s\n- Target: %s\n- Version: %s\n", req.RequestLine.Method, req.RequestLine.RequestTarget, req.RequestLine.HttpVersion)
+	// fmt.Printf("Request line:\n- Method: %s\n- Target: %s\n- Version: %s\n", req.RequestLine.Method, req.RequestLine.RequestTarget, req.RequestLine.HttpVersion)
 	fmt.Printf("closing conn")
 }
