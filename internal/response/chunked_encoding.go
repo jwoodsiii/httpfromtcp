@@ -33,7 +33,7 @@ func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
 }
 
 func (w *Writer) WriteChunkedBodyDone() (int, error) {
-	written, err := w.writer.Write([]byte("0\r\n\r\n"))
+	written, err := w.writer.Write([]byte("0\r\n"))
 	if err != nil {
 		return 0, err
 	}

@@ -46,7 +46,6 @@ func GetDefaultHeaders(contentLen int) headers.Headers {
 	return h
 }
 
-// TODO: Implement writeheaders on writer
 func (w *Writer) WriteHeaders(headers headers.Headers) error {
 	if w.writerStatus != WriterHeaders {
 		return fmt.Errorf("error: cannot write headers in state: %d", w.writerStatus)
@@ -60,6 +59,12 @@ func (w *Writer) WriteHeaders(headers headers.Headers) error {
 	}
 	_, err := w.writer.Write([]byte("\r\n"))
 	return err
+}
+
+// Trailers
+func (w *Writer) WriteTrailers(h headers.Headers) error {
+	WriteHeaders(w.writer, h)
+	return nil
 }
 
 func (w *Writer) WriteBody(p []byte) (int, error) {

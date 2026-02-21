@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -44,6 +46,11 @@ func handler(w *response.Writer, req *request.Request) {
 	}
 	if strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin/") {
 		proxyHandler(w, req)
+		return
+	}
+
+	if req.RequestLine.RequestTarget == "/video" {
+		vidHandler(w, req)
 		return
 	}
 	handler200(w, req)
@@ -109,6 +116,9 @@ func handler200(w *response.Writer, _ *request.Request) {
 func proxyHandler(w *response.Writer, req *request.Request) {
 	h := headers.NewHeaders()
 	h.Set("Transfer-Encoding", "chunked")
+	h.Set("Trailer", "X-Content-SHA256")
+	h.Set("Trailer", "X-Content-Length")
+	h.Delete("Content-Length")
 	w.WriteStatusLine(response.StatusOK)
 	w.WriteHeaders(h)
 
@@ -118,6 +128,7 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 	}
 	defer resp.Body.Close()
 	buf := make([]byte, 1024)
+	fullBody := make([]byte, 0, len(buf)*4)
 	for {
 		n, err := resp.Body.Read(buf)
 		if err != nil {
@@ -126,8 +137,15 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 				if err != nil {
 					fmt.Printf("error writing body: %v", err)
 				}
+				// if len(buf[:n])+len(fullBody) > len(fullBody) {
+				// 	fullBody = resizeBuffer(fullBody)
+				// }
+				fullBody = append(fullBody, buf[:n]...)
 			}
 			if errors.Is(err, io.EOF) {
+				hash := sha256.Sum256(fullBody)
+				h.Set("X-Content-SHA256", fmt.Sprintf("%x", hash))
+				h.Set("X-Content-Length", fmt.Sprintf("%d", len(fullBody)))
 				break
 			}
 			fmt.Printf("error: %v", err)
@@ -138,6 +156,28 @@ func proxyHandler(w *response.Writer, req *request.Request) {
 		if err != nil {
 			fmt.Printf("error writing body: %v", err)
 		}
+		// if no errors write buf to fullBody to track for hashing
+		// check that appending buf won't overflow fullBody first
+		// if len(buf[:n])+len(fullBody) > len(fullBody) {
+		// 	fullBody = resizeBuffer(fullBody)
+		// }
+		fullBody = append(fullBody, buf[:n]...)
 	}
 	w.WriteChunkedBodyDone()
+	w.WriteTrailers(h)
+}
+
+func vidHandler(w *response.Writer, _ *request.Request) {
+	fp := filepath.Join("assets", "vim.mp4")
+	vid, err := os.ReadFile(fp)
+	if err != nil {
+		fmt.Printf("error reading video file: %v", err)
+		return
+	}
+	h := response.GetDefaultHeaders(len(vid))
+	h.Set("Content-Type", "video/mp4")
+	w.WriteStatusLine(response.StatusOK)
+	w.WriteHeaders(h)
+	w.WriteBody(vid)
+
 }
