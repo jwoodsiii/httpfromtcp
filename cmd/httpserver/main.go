@@ -1,11 +1,17 @@
 package main
 
 import (
+	"errors"
+	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
+	"github.com/jwoodsiii/httpfromtcp/internal/headers"
 	"github.com/jwoodsiii/httpfromtcp/internal/request"
 	"github.com/jwoodsiii/httpfromtcp/internal/response"
 	"github.com/jwoodsiii/httpfromtcp/internal/server"
@@ -34,6 +40,10 @@ func handler(w *response.Writer, req *request.Request) {
 	}
 	if req.RequestLine.RequestTarget == "/myproblem" {
 		handler500(w, req)
+		return
+	}
+	if strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin/") {
+		proxyHandler(w, req)
 		return
 	}
 	handler200(w, req)
@@ -94,4 +104,40 @@ func handler200(w *response.Writer, _ *request.Request) {
 	w.WriteHeaders(h)
 	w.WriteBody(body)
 	return
+}
+
+func proxyHandler(w *response.Writer, req *request.Request) {
+	h := headers.NewHeaders()
+	h.Set("Transfer-Encoding", "chunked")
+	w.WriteStatusLine(response.StatusOK)
+	w.WriteHeaders(h)
+
+	resp, err := http.Get(fmt.Sprintf("https://httpbin.org/%s", strings.TrimPrefix(req.RequestLine.RequestTarget, "/httpbin/")))
+	if err != nil {
+		fmt.Printf("error making request: %v", err)
+	}
+	defer resp.Body.Close()
+	buf := make([]byte, 1024)
+	for {
+		n, err := resp.Body.Read(buf)
+		if err != nil {
+			if n > 0 {
+				_, err = w.WriteChunkedBody(buf[:n])
+				if err != nil {
+					fmt.Printf("error writing body: %v", err)
+				}
+			}
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			fmt.Printf("error: %v", err)
+			break
+		}
+		fmt.Println("Read", n, "bytes")
+		_, err = w.WriteChunkedBody(buf[:n])
+		if err != nil {
+			fmt.Printf("error writing body: %v", err)
+		}
+	}
+	w.WriteChunkedBodyDone()
 }

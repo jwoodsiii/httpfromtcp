@@ -63,6 +63,10 @@ func NewHeaders() Headers {
 	return make(Headers)
 }
 
+func (h Headers) Delete(key string) {
+	delete(h, strings.ToLower(key))
+}
+
 func (h Headers) Override(key, value string) {
 	key = strings.ToLower(key)
 	h[key] = value
